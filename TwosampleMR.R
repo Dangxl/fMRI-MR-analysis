@@ -15,25 +15,29 @@ outcome_data <-  read_outcome_data("outcome.txt",
 	other_allele_col="A2", pval_col = "P", sep="\t")
 
 # Clumping
-exposure_data <- clump_data(exp, clump_kb = 1000, clump_r2 = 0.001)
+exp <- clump_data(exposure_data, clump_kb = 1000, clump_r2 = 0.001)
 
 # Harmonization
-dat <- harmonise_data(exposure_data, outcome_data)
+dat <- harmonise_data(exp, outcome_data)
 dat <- dat[which(dat$mr_keep==TRUE),]
 
 # test outliers by using ivw_radial
 outlier <- ivw_radial(dat)
 
+# remove outliers
+outliers <- outlier$outliers
+dat <- dat[which(!(dat$SNP %in% outliers$SNP)),]
+
 ## Horizontal_pleiotropy by using MR_PRESSO
-Horizontal_pleiotropy <- mr_presso(BetaOutcome="beta.outcome", BetaExposure="beta.exposure",
-	SdOutcome="se.outcome", SdExposure="se.exposure",data = dat, OUTLIERtest = TRUE)
+dat_pleio <- mr_presso(BetaOutcome="beta.outcome",BetaExposure="beta.exposure",
+        SdOutcome="se.outcome",SdExposure="se.exposure",data = dat,OUTLIERtest = TRUE)
+# remove pleiotropic SNP
+dat_pleio$`MR-PRESSO results`$`Outlier Test`$name <- rownames(dat_pleio$`MR-PRESSO results`$`Outlier Test`)
+data1 <- subset(dat_pleio$`MR-PRESSO results`$`Outlier Test`, dat_pleio$`MR-PRESSO results`$`Outlier Test`$Pvalue>0.05)
+data <- dat[data1$name,]
 
-data <- read.table("exposure.txt", header=T)
-
-#Select the SNPs that are strongly associated with exposure
-data <- subset(data, P<5e-8)
-
-# the proportion of variance in the phenotype explained by the genetic variants
+# F-statistic
+# r2 is the proportion of variance in the phenotype explained by the genetic variants
 # N is the sample size
 data$r2 <- data$BETA*data$BETA/(data$BETA*data$BETA+data$SE*data$SE*data$N)
 F_data <- merge(dat, data, by = "SNP")
